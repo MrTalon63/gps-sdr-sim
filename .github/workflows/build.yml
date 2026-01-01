@@ -1,0 +1,52 @@
+name: Build Windows
+on:
+    push:
+        branches: [main, master]
+
+    pull_request:
+        branches: [main, master]
+
+    workflow_dispatch:
+
+jobs:
+    build-windows:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up MSYS2
+              uses: msys2/setup-msys2@v2
+              with:
+                  msystem: MINGW64
+                  update: true
+                  install: >-
+                      mingw-w64-x86_64-gcc
+                      make
+
+            - name: GPS-SDR-SIM
+              shell: msys2 {0}
+              run: |
+                  gcc gpssim.c getopt.c -lm -O3 -o gps-sdr-sim.exe -D_FILE_OFFSET_BITS=64 -DUSER_MOTION_SIZE=120000
+
+            - name: Test GPS-SDR-SIM
+              shell: msys2 {0}
+              run: |
+                  ./gps-sdr-sim.exe --help || true
+                  ls -lh gps-sdr-sim.exe
+
+            - name: Upload Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: gps-sdr-sim-windows
+                  path: gps-sdr-sim.exe
+                  retention-days: 365
+
+            - name: Create GitHub Release
+              if: startsWith(github.ref, 'refs/tags/')
+              uses: softprops/action-gh-release@v1
+              with:
+                  files: gps-sdr-sim.exe
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
